@@ -616,6 +616,17 @@
         const LOCK_DELAY = 500;    // 고정 지연 시간 (ms)
         let lockTimer = 0;         // 고정 지연 타이머
 
+        // ===== DAS/ARR 입력 시스템 상수 및 변수 =====
+        const DAS = 150;           // Delayed Auto Shift (초기 지연 시간)
+        const ARR = 30;            // Auto Repeat Rate (연속 이동 간격)
+        const keys = {};           // 눌려있는 키 상태
+        const keyTimers = {        // 각 키별 유지 시간 및 반복 타이머
+            ArrowLeft: { held: 0, lastRepeat: 0 },
+            ArrowRight: { held: 0, lastRepeat: 0 },
+            ArrowDown: { held: 0, lastRepeat: 0 }
+        };
+        let lastTimestamp = 0;     // 프레임 간 시간 계산용
+
         // ===== 게임 보드 초기화 함수 =====
         function createBoard() {
             // 20x10 크기의 빈 보드 생성 (0은 빈 칸)
@@ -1033,103 +1044,132 @@
             }
         }
 
-        // ===== 키보드 입력 처리 =====
+        // ===== 키보드 입력 처리 (상태 업데이트) =====
         document.addEventListener('keydown', (e) => {
             if (gameOver) return;
 
-            switch (e.code) {
-                case 'ArrowLeft': // 왼쪽 이동
-                    if (!isPaused && isValidMove(currentPiece, -1, 0)) {
-                        currentPiece.x--;
-                        // 이동 성공 시 고정 지연 타이머 초기화 (조작성 향상)
-                        if (!isValidMove(currentPiece, 0, 1)) {
-                            lockTimer = performance.now();
+            // 중복 입력 방지 (단발성 입력을 위함)
+            if (keys[e.code]) return;
+
+            keys[e.code] = true;
+
+            // 즉발성 입력 처리
+            if (!isPaused) {
+                switch (e.code) {
+                    case 'ArrowLeft':
+                        if (isValidMove(currentPiece, -1, 0)) {
+                            currentPiece.x--;
+                            if (!isValidMove(currentPiece, 0, 1)) lockTimer = performance.now();
+                            keyTimers.ArrowLeft.lastRepeat = performance.now();
                         }
-                    }
-                    break;
-
-                case 'ArrowRight': // 오른쪽 이동
-                    if (!isPaused && isValidMove(currentPiece, 1, 0)) {
-                        currentPiece.x++;
-                        // 이동 성공 시 고정 지연 타이머 초기화 (조작성 향상)
-                        if (!isValidMove(currentPiece, 0, 1)) {
-                            lockTimer = performance.now();
+                        break;
+                    case 'ArrowRight':
+                        if (isValidMove(currentPiece, 1, 0)) {
+                            currentPiece.x++;
+                            if (!isValidMove(currentPiece, 0, 1)) lockTimer = performance.now();
+                            keyTimers.ArrowRight.lastRepeat = performance.now();
                         }
-                    }
-                    break;
-
-                case 'ArrowDown': // 소프트 드롭
-                    if (!isPaused && isValidMove(currentPiece, 0, 1)) {
-                        currentPiece.y++;
-                        score += 1; // 소프트 드롭 보너스
-                        updateUI();
-                    }
-                    break;
-
-                case 'ArrowUp': // 회전
-                    if (!isPaused) {
+                        break;
+                    case 'ArrowDown':
+                        if (isValidMove(currentPiece, 0, 1)) {
+                            currentPiece.y++;
+                            score += 1;
+                            updateUI();
+                            keyTimers.ArrowDown.lastRepeat = performance.now();
+                        }
+                        break;
+                    case 'ArrowUp':
                         const rotated = rotatePiece(currentPiece);
                         let moveX = 0;
                         let success = false;
-
-                        // 벽 킥 시도 (회전 후 벽에 끼면 밀어내기)
-                        if (isValidMove(currentPiece, 0, 0, rotated)) {
-                            success = true;
-                        } else if (isValidMove(currentPiece, 1, 0, rotated)) {
-                            moveX = 1;
-                            success = true;
-                        } else if (isValidMove(currentPiece, -1, 0, rotated)) {
-                            moveX = -1;
-                            success = true;
-                        } else if (isValidMove(currentPiece, 2, 0, rotated)) {
-                            moveX = 2;
-                            success = true;
-                        } else if (isValidMove(currentPiece, -2, 0, rotated)) {
-                            moveX = -2;
-                            success = true;
-                        }
+                        if (isValidMove(currentPiece, 0, 0, rotated)) success = true;
+                        else if (isValidMove(currentPiece, 1, 0, rotated)) { moveX = 1; success = true; }
+                        else if (isValidMove(currentPiece, -1, 0, rotated)) { moveX = -1; success = true; }
+                        else if (isValidMove(currentPiece, 2, 0, rotated)) { moveX = 2; success = true; }
+                        else if (isValidMove(currentPiece, -2, 0, rotated)) { moveX = -2; success = true; }
 
                         if (success) {
                             currentPiece.x += moveX;
                             currentPiece.shape = rotated;
-                            // 회전 성공 시 고정 지연 타이머 초기화
-                            if (!isValidMove(currentPiece, 0, 1)) {
-                                lockTimer = performance.now();
+                            if (!isValidMove(currentPiece, 0, 1)) lockTimer = performance.now();
+                        }
+                        break;
+                    case 'Space':
+                        let dropDistance = 0;
+                        while (isValidMove(currentPiece, 0, dropDistance + 1)) dropDistance++;
+                        currentPiece.y += dropDistance;
+                        score += dropDistance * 2;
+                        updateUI();
+                        lockPiece();
+                        e.preventDefault();
+                        break;
+                    case 'ShiftLeft':
+                    case 'ShiftRight':
+                        holdPiece();
+                        e.preventDefault();
+                        break;
+                }
+            }
+
+            if (e.code === 'KeyP') isPaused = !isPaused;
+            if (e.code === 'Digit7') { score = 38000; updateUI(); }
+
+            // 방향키 입력 시 기본 스크롤 방지
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+            if (keyTimers[e.code]) {
+                keyTimers[e.code].held = 0;
+            }
+        });
+
+        // ===== 연속 입력(DAS/ARR) 처리 함수 =====
+        function handleContinuousInput(currentTime) {
+            if (isPaused || gameOver) return;
+
+            const processKey = (code, moveFn) => {
+                if (keys[code]) {
+                    if (keyTimers[code].held === 0) {
+                        keyTimers[code].held = currentTime;
+                    } else {
+                        const elapsed = currentTime - keyTimers[code].held;
+                        if (elapsed >= DAS) {
+                            const repeatElapsed = currentTime - keyTimers[code].lastRepeat;
+                            if (repeatElapsed >= ARR) {
+                                moveFn();
+                                keyTimers[code].lastRepeat = currentTime;
                             }
                         }
                     }
-                    break;
+                }
+            };
 
-                case 'Space': // 하드 드롭
-                    if (!isPaused) {
-                        let dropDistance = 0;
-                        while (isValidMove(currentPiece, 0, dropDistance + 1)) {
-                            dropDistance++;
-                        }
-                        currentPiece.y += dropDistance;
-                        score += dropDistance * 2; // 하드 드롭 보너스
-                        updateUI();
-                        lockPiece();
-                    }
-                    e.preventDefault(); // 스크롤 방지
-                    break;
+            processKey('ArrowLeft', () => {
+                if (isValidMove(currentPiece, -1, 0)) {
+                    currentPiece.x--;
+                    if (!isValidMove(currentPiece, 0, 1)) lockTimer = performance.now();
+                }
+            });
 
-                case 'KeyP': // 일시정지
-                    isPaused = !isPaused;
-                    break;
+            processKey('ArrowRight', () => {
+                if (isValidMove(currentPiece, 1, 0)) {
+                    currentPiece.x++;
+                    if (!isValidMove(currentPiece, 0, 1)) lockTimer = performance.now();
+                }
+            });
 
-                case 'Digit7': // 테스트용: 38000점으로 설정 (4만점 이벤트 테스트용)
-                    score = 38000;
+            processKey('ArrowDown', () => {
+                if (isValidMove(currentPiece, 0, 1)) {
+                    currentPiece.y++;
+                    score += 1;
                     updateUI();
-                    break;
-
-                case 'ShiftLeft':
-                case 'ShiftRight': // 시프트 키로 홀드
-                    holdPiece();
-                    e.preventDefault();
-                    break;
-            }
-        });
+                }
+            });
+        }
 
         // ===== 게임 오버 표시 =====
         function showGameOver() {
@@ -1201,6 +1241,9 @@
         // ===== 메인 게임 루프 =====
         function gameLoop(currentTime = 0) {
             if (gameOver) return;
+
+            // 입력 폴링 (DAS/ARR 처리)
+            handleContinuousInput(currentTime);
 
             // 드롭 타이밍 체크
             if (!isPaused) {
