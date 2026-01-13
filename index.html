@@ -117,12 +117,19 @@
             text-shadow: 0 0 15px #0f0;
         }
 
-        /* 다음 블록 미리보기 캔버스 */
         #nextCanvas {
             border: 2px solid #444;
             border-radius: 10px;
             margin-top: 10px;
             box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
+
+        /* 홀드 캔버스 전용 스타일 */
+        #holdCanvas {
+            border: 2px solid #444;
+            border-radius: 10px;
+            margin-top: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
         }
 
         /* ===== 컨트롤 안내 ===== */
@@ -358,12 +365,19 @@
                 <canvas id="nextCanvas" width="120" height="120"></canvas>
             </div>
 
+            <!-- 홀드 블록 -->
+            <div class="info-box">
+                <h3>HOLD</h3>
+                <canvas id="holdCanvas" width="120" height="120"></canvas>
+            </div>
+
             <!-- 컨트롤 안내 -->
             <div class="info-box controls">
                 <span>←→</span> 이동<br>
                 <span>↑</span> 회전<br>
                 <span>↓</span> 소프트 드롭<br>
                 <span>SPACE</span> 하드 드롭<br>
+                <span>SHIFT</span> 저장/교체<br>
                 <span>P</span> 일시정지
             </div>
         </div>
@@ -375,6 +389,8 @@
         const ctx = canvas.getContext('2d');
         const nextCanvas = document.getElementById('nextCanvas');
         const nextCtx = nextCanvas.getContext('2d');
+        const holdCanvas = document.getElementById('holdCanvas');
+        const holdCtx = holdCanvas.getContext('2d');
 
         // ===== 게임 상수 정의 =====
         const COLS = 10;           // 가로 칸 수
@@ -480,6 +496,8 @@
         let lastDropTime = 0;      // 마지막 드롭 시간
         let animationId = null;    // 애니메이션 프레임 ID
         let isSpecialEventTriggered = false; // 특수 이벤트 발생 여부
+        let heldPiece = null;      // 저장된 피스
+        let canHold = true;        // 교체 가능 여부
 
         // ===== 게임 보드 초기화 함수 =====
         function createBoard() {
@@ -601,6 +619,53 @@
             }
 
             drawNextPiece();
+
+            // 교체 가능 상태로 복구
+            canHold = true;
+        }
+
+        // ===== 블록 저장/교체(Hold) 함수 =====
+        function holdPiece() {
+            if (!canHold || isPaused || gameOver) return;
+
+            if (heldPiece === null) {
+                // 저장된게 없으면 현재꺼 저장하고 새로 생성
+                heldPiece = {
+                    type: currentPiece.type,
+                    shape: TETROMINOS[currentPiece.type].shape.map(row => [...row]),
+                    color: currentPiece.color,
+                    glow: currentPiece.glow,
+                    shadow: currentPiece.shadow
+                };
+                spawnNewPiece();
+            } else {
+                // 저장된게 있으면 교체
+                const temp = {
+                    type: currentPiece.type,
+                    shape: TETROMINOS[currentPiece.type].shape.map(row => [...row]),
+                    color: currentPiece.color,
+                    glow: currentPiece.glow,
+                    shadow: currentPiece.shadow
+                };
+
+                // 저장된 피스로 현재 피스 설정
+                const type = heldPiece.type;
+                const tetromino = TETROMINOS[type];
+                currentPiece = {
+                    type: type,
+                    shape: tetromino.shape.map(row => [...row]),
+                    color: tetromino.color,
+                    glow: tetromino.glow,
+                    shadow: tetromino.shadow,
+                    x: Math.floor(COLS / 2) - Math.ceil(tetromino.shape[0].length / 2),
+                    y: 0
+                };
+
+                heldPiece = temp;
+            }
+
+            canHold = false; // 이번 턴에는 더 이상 교체 불가
+            drawHoldPiece();
         }
 
         // ===== 라인 클리어 함수 =====
@@ -649,7 +714,7 @@
             document.getElementById('specialEvent').classList.add('show');
 
             // 속도 대폭 증가 (매우 빠름)
-            dropInterval = 50;
+            dropInterval = 20;
 
             // 효과 강조를 위한 배경색 변경 등 추가 가능
             document.body.style.background = 'linear-gradient(135deg, #200 0%, #000 100%)';
@@ -891,6 +956,12 @@
                     score = 18000;
                     updateUI();
                     break;
+
+                case 'ShiftLeft':
+                case 'ShiftRight': // 시프트 키로 홀드
+                    holdPiece();
+                    e.preventDefault();
+                    break;
             }
         });
 
@@ -915,10 +986,42 @@
             document.body.style.background = 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)';
             currentPiece = null;
             nextPiece = null;
+            heldPiece = null;
+            canHold = true;
+            drawHoldPiece();
             updateUI();
             spawnNewPiece();
             lastDropTime = performance.now();
             gameLoop();
+        }
+
+        // ===== 홀드 피스 그리기 =====
+        function drawHoldPiece() {
+            // 배경 클리어
+            holdCtx.fillStyle = '#0a0a0a';
+            holdCtx.fillRect(0, 0, holdCanvas.width, holdCanvas.height);
+
+            if (heldPiece) {
+                const shape = heldPiece.shape;
+                const offsetX = (holdCanvas.width - shape[0].length * NEXT_BLOCK_SIZE) / 2;
+                const offsetY = (holdCanvas.height - shape.length * NEXT_BLOCK_SIZE) / 2;
+
+                for (let row = 0; row < shape.length; row++) {
+                    for (let col = 0; col < shape[row].length; col++) {
+                        if (shape[row][col]) {
+                            drawBlock(
+                                holdCtx,
+                                offsetX + col * NEXT_BLOCK_SIZE,
+                                offsetY + row * NEXT_BLOCK_SIZE,
+                                NEXT_BLOCK_SIZE,
+                                heldPiece.color,
+                                heldPiece.glow,
+                                heldPiece.shadow
+                            );
+                        }
+                    }
+                }
+            }
         }
 
         // ===== 메인 게임 루프 =====
