@@ -495,7 +495,10 @@
         let dropInterval = 1000;   // 드롭 간격 (ms)
         let lastDropTime = 0;      // 마지막 드롭 시간
         let animationId = null;    // 애니메이션 프레임 ID
-        let isSpecialEventTriggered = false; // 특수 이벤트 발생 여부
+        let isSpecialEventActive = false; // 특수 이벤트 진행 중 여부
+        let nextEventScore = 20000;       // 다음 이벤트 발생 점수
+        let eventTimer = null;            // 이벤트 종료 타이머
+        let baseDropInterval = 1000;      // 이벤트 미적용 시 기준 속도
         let heldPiece = null;      // 저장된 피스
         let canHold = true;        // 교체 가능 여부
 
@@ -694,9 +697,14 @@
                 // 10줄마다 레벨업
                 level = Math.floor(lines / 10) + 1;
 
-                // 레벨에 따라 드롭 속도 증가 (특수 이벤트가 발생하지 않았을 때만 적용)
-                if (!isSpecialEventTriggered) {
-                    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                // 레벨에 따라 드롭 속도 증가 (기준 속도 업데이트)
+                baseDropInterval = Math.max(100, 1000 - (level - 1) * 100);
+
+                // 현재 속도 반영 (이벤트 중이면 1.5배 가속 유지)
+                if (isSpecialEventActive) {
+                    dropInterval = baseDropInterval / 1.5;
+                } else {
+                    dropInterval = baseDropInterval;
                 }
 
                 // UI 업데이트
@@ -706,18 +714,31 @@
 
         // ===== 특수 이벤트 트리거 함수 =====
         function triggerSpecialEvent() {
-            if (isSpecialEventTriggered) return;
+            if (isSpecialEventActive) return;
 
-            isSpecialEventTriggered = true;
+            isSpecialEventActive = true;
 
             // UI 표시
             document.getElementById('specialEvent').classList.add('show');
 
-            // 속도 대폭 증가 (매우 빠름)
-            dropInterval = 20;
+            // 속도 1.5배 증가 (기존 속도 기준)
+            dropInterval = baseDropInterval / 1.5;
 
-            // 효과 강조를 위한 배경색 변경 등 추가 가능
+            // 효과 강조를 위한 배경색 변경
             document.body.style.background = 'linear-gradient(135deg, #200 0%, #000 100%)';
+
+            // 다음 이벤트 점수 예약
+            nextEventScore += 20000;
+
+            // 10초 후 종료
+            if (eventTimer) clearTimeout(eventTimer);
+            eventTimer = setTimeout(() => {
+                isSpecialEventActive = false;
+                dropInterval = baseDropInterval;
+                document.getElementById('specialEvent').classList.remove('show');
+                document.body.style.background = 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)';
+                eventTimer = null;
+            }, 10000); // 10000ms = 10초
         }
 
         // ===== UI 업데이트 함수 =====
@@ -726,8 +747,8 @@
             document.getElementById('level').textContent = level;
             document.getElementById('lines').textContent = lines;
 
-            // 20,000점 달성 체크
-            if (score >= 20000 && !isSpecialEventTriggered) {
+            // N만점 달성 체크 (순환형)
+            if (score >= nextEventScore && !isSpecialEventActive) {
                 triggerSpecialEvent();
             }
         }
@@ -952,8 +973,8 @@
                     isPaused = !isPaused;
                     break;
 
-                case 'Digit7': // 테스트용: 18000점으로 설정
-                    score = 18000;
+                case 'Digit7': // 테스트용: 38000점으로 설정 (4만점 이벤트 테스트용)
+                    score = 38000;
                     updateUI();
                     break;
 
@@ -980,8 +1001,14 @@
             lines = 0;
             gameOver = false;
             isPaused = false;
+            baseDropInterval = 1000;
             dropInterval = 1000;
-            isSpecialEventTriggered = false;
+            isSpecialEventActive = false;
+            nextEventScore = 20000;
+            if (eventTimer) {
+                clearTimeout(eventTimer);
+                eventTimer = null;
+            }
             document.getElementById('specialEvent').classList.remove('show');
             document.body.style.background = 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)';
             currentPiece = null;
