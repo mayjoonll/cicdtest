@@ -217,6 +217,53 @@
             box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
         }
 
+        /* ===== 게임 오버 특수 이벤트 스타일 ===== */
+        .game-over-image {
+            width: 200px;
+            height: auto;
+            border: 3px solid #ff0055;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px #ff0055;
+            animation: glitch 1s infinite alternate;
+        }
+
+        .game-over-dialogue {
+            color: #fff;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+            text-align: center;
+            text-shadow: 0 0 10px #ff0055;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        @keyframes glitch {
+            0% {
+                transform: translate(0);
+            }
+
+            20% {
+                transform: translate(-2px, 2px);
+            }
+
+            40% {
+                transform: translate(-2px, -2px);
+            }
+
+            60% {
+                transform: translate(2px, 2px);
+            }
+
+            80% {
+                transform: translate(2px, -2px);
+            }
+
+            100% {
+                transform: translate(0);
+            }
+        }
+
         /* ===== 배경 애니메이션 파티클 ===== */
         .particles {
             position: fixed;
@@ -335,6 +382,8 @@
             <!-- 게임 오버 오버레이 -->
             <div class="game-over-overlay" id="gameOverOverlay">
                 <div class="game-over-text">GAME OVER</div>
+                <img src="unnamed.jpg" alt="Game Over" class="game-over-image">
+                <div class="game-over-dialogue">"뭐야 장난감이 망가져 버렸잖아?"</div>
                 <button class="restart-btn" onclick="restartGame()">다시 시작</button>
             </div>
         </div>

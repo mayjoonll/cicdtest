@@ -5,6 +5,7 @@ FROM nginx:alpine
 # index.html과 이벤트 이미지를 복사합니다.
 COPY index.html /usr/share/nginx/html/
 COPY KakaoTalk_20260106_125546569.png /usr/share/nginx/html/
+COPY unnamed.jpg /usr/share/nginx/html/
 
 # 80번 포트 노출
 EXPOSE 80
