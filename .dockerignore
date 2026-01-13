@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.agent
+brain
+implementation_plan.md
+task.md
+walkthrough.md
+Dockerfile
+.dockerignore
+node_modules
+dist
+build
