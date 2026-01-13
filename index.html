@@ -613,6 +613,8 @@
         let baseDropInterval = 1000;      // 이벤트 미적용 시 기준 속도
         let heldPiece = null;      // 저장된 피스
         let canHold = true;        // 교체 가능 여부
+        const LOCK_DELAY = 500;    // 고정 지연 시간 (ms)
+        let lockTimer = 0;         // 고정 지연 타이머
 
         // ===== 게임 보드 초기화 함수 =====
         function createBoard() {
@@ -1039,12 +1041,20 @@
                 case 'ArrowLeft': // 왼쪽 이동
                     if (!isPaused && isValidMove(currentPiece, -1, 0)) {
                         currentPiece.x--;
+                        // 이동 성공 시 고정 지연 타이머 초기화 (조작성 향상)
+                        if (!isValidMove(currentPiece, 0, 1)) {
+                            lockTimer = performance.now();
+                        }
                     }
                     break;
 
                 case 'ArrowRight': // 오른쪽 이동
                     if (!isPaused && isValidMove(currentPiece, 1, 0)) {
                         currentPiece.x++;
+                        // 이동 성공 시 고정 지연 타이머 초기화 (조작성 향상)
+                        if (!isValidMove(currentPiece, 0, 1)) {
+                            lockTimer = performance.now();
+                        }
                     }
                     break;
 
@@ -1059,21 +1069,33 @@
                 case 'ArrowUp': // 회전
                     if (!isPaused) {
                         const rotated = rotatePiece(currentPiece);
+                        let moveX = 0;
+                        let success = false;
+
                         // 벽 킥 시도 (회전 후 벽에 끼면 밀어내기)
                         if (isValidMove(currentPiece, 0, 0, rotated)) {
-                            currentPiece.shape = rotated;
+                            success = true;
                         } else if (isValidMove(currentPiece, 1, 0, rotated)) {
-                            currentPiece.x++;
-                            currentPiece.shape = rotated;
+                            moveX = 1;
+                            success = true;
                         } else if (isValidMove(currentPiece, -1, 0, rotated)) {
-                            currentPiece.x--;
-                            currentPiece.shape = rotated;
+                            moveX = -1;
+                            success = true;
                         } else if (isValidMove(currentPiece, 2, 0, rotated)) {
-                            currentPiece.x += 2;
-                            currentPiece.shape = rotated;
+                            moveX = 2;
+                            success = true;
                         } else if (isValidMove(currentPiece, -2, 0, rotated)) {
-                            currentPiece.x -= 2;
+                            moveX = -2;
+                            success = true;
+                        }
+
+                        if (success) {
+                            currentPiece.x += moveX;
                             currentPiece.shape = rotated;
+                            // 회전 성공 시 고정 지연 타이머 초기화
+                            if (!isValidMove(currentPiece, 0, 1)) {
+                                lockTimer = performance.now();
+                            }
                         }
                     }
                     break;
@@ -1142,6 +1164,7 @@
             updateUI();
             spawnNewPiece();
             lastDropTime = performance.now();
+            lockTimer = 0;
             triggerStartEvent();
             gameLoop();
         }
@@ -1180,13 +1203,26 @@
             if (gameOver) return;
 
             // 드롭 타이밍 체크
-            if (!isPaused && currentTime - lastDropTime > dropInterval) {
+            if (!isPaused) {
                 if (isValidMove(currentPiece, 0, 1)) {
-                    currentPiece.y++;
+                    // 아래로 이동 가능할 경우 일반 드롭 로직
+                    if (currentTime - lastDropTime > dropInterval) {
+                        currentPiece.y++;
+                        lastDropTime = currentTime;
+                        lockTimer = 0; // 공중에 떠있으면 타이머 리셋
+                    }
                 } else {
-                    lockPiece();
+                    // 바닥에 닿았을 때
+                    if (lockTimer === 0) {
+                        lockTimer = currentTime; // 처음 닿은 시각 저장
+                    }
+
+                    // 지연 시간(500ms)이 지나면 고정
+                    if (currentTime - lockTimer > LOCK_DELAY) {
+                        lockPiece();
+                        lockTimer = 0;
+                    }
                 }
-                lastDropTime = currentTime;
             }
 
             // 화면 그리기
