@@ -6,6 +6,7 @@ FROM nginx:alpine
 COPY index.html /usr/share/nginx/html/
 COPY KakaoTalk_20260106_125546569.png /usr/share/nginx/html/
 COPY unnamed.jpg /usr/share/nginx/html/
+COPY KakaoTalk_20260112_200852969.png /usr/share/nginx/html/
 
 # 80번 포트 노출
 EXPOSE 80
