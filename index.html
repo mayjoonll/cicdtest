@@ -253,12 +253,70 @@
                 opacity: 0;
             }
         }
+
+        /* ===== 특수 이벤트 (20,000점) 스타일 ===== */
+        .special-event-container {
+            position: fixed;
+            left: -400px;
+            /* 초기에는 화면 왼쪽 밖에 숨김 */
+            bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: left 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+
+        .special-event-container.show {
+            left: 50px;
+            /* 트리거 시 화면 안으로 이동 */
+        }
+
+        .special-image {
+            width: 250px;
+            height: auto;
+            border: 4px solid #ff00ff;
+            border-radius: 15px;
+            box-shadow: 0 0 20px #ff00ff, 0 0 40px rgba(255, 0, 255, 0.5);
+            margin-bottom: 15px;
+        }
+
+        .special-dialogue {
+            background: rgba(0, 0, 0, 0.8);
+            color: #0ff;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: 2px solid #0ff;
+            box-shadow: 0 0 15px #0ff;
+            white-space: nowrap;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
     </style>
 </head>
 
 <body>
     <!-- 배경 파티클 효과 -->
     <div class="particles" id="particles"></div>
+
+    <!-- 특수 이벤트 컨테이너 (초기 숨김) -->
+    <div id="specialEvent" class="special-event-container">
+        <img src="KakaoTalk_20260106_125546569.png" alt="Special Event" class="special-image">
+        <div class="special-dialogue">"호오? 여기까지 도달하셨겠다?"</div>
+    </div>
 
     <!-- 메인 게임 컨테이너 -->
     <div class="game-container">
@@ -421,6 +479,7 @@
         let dropInterval = 1000;   // 드롭 간격 (ms)
         let lastDropTime = 0;      // 마지막 드롭 시간
         let animationId = null;    // 애니메이션 프레임 ID
+        let isSpecialEventTriggered = false; // 특수 이벤트 발생 여부
 
         // ===== 게임 보드 초기화 함수 =====
         function createBoard() {
@@ -570,12 +629,30 @@
                 // 10줄마다 레벨업
                 level = Math.floor(lines / 10) + 1;
 
-                // 레벨에 따라 드롭 속도 증가
-                dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                // 레벨에 따라 드롭 속도 증가 (특수 이벤트가 발생하지 않았을 때만 적용)
+                if (!isSpecialEventTriggered) {
+                    dropInterval = Math.max(100, 1000 - (level - 1) * 100);
+                }
 
                 // UI 업데이트
                 updateUI();
             }
+        }
+
+        // ===== 특수 이벤트 트리거 함수 =====
+        function triggerSpecialEvent() {
+            if (isSpecialEventTriggered) return;
+
+            isSpecialEventTriggered = true;
+
+            // UI 표시
+            document.getElementById('specialEvent').classList.add('show');
+
+            // 속도 대폭 증가 (매우 빠름)
+            dropInterval = 50;
+
+            // 효과 강조를 위한 배경색 변경 등 추가 가능
+            document.body.style.background = 'linear-gradient(135deg, #200 0%, #000 100%)';
         }
 
         // ===== UI 업데이트 함수 =====
@@ -583,6 +660,11 @@
             document.getElementById('score').textContent = score;
             document.getElementById('level').textContent = level;
             document.getElementById('lines').textContent = lines;
+
+            // 20,000점 달성 체크
+            if (score >= 20000 && !isSpecialEventTriggered) {
+                triggerSpecialEvent();
+            }
         }
 
         // ===== 네온 블록 그리기 함수 =====
@@ -804,6 +886,11 @@
                 case 'KeyP': // 일시정지
                     isPaused = !isPaused;
                     break;
+
+                case 'Digit7': // 테스트용: 18000점으로 설정
+                    score = 18000;
+                    updateUI();
+                    break;
             }
         });
 
@@ -823,6 +910,9 @@
             gameOver = false;
             isPaused = false;
             dropInterval = 1000;
+            isSpecialEventTriggered = false;
+            document.getElementById('specialEvent').classList.remove('show');
+            document.body.style.background = 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%)';
             currentPiece = null;
             nextPiece = null;
             updateUI();
